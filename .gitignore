@@ -1,0 +1,33 @@
+.env
+# Firebase configuration
+firebase_key.json
+
+__pycache__/
+qr_codes/*.png
+
+# Python files
+*.py[cod]
+
+# Byte-compiled Python files
+*.py[cod]
+*.pyd
+
+# Python packages
+*.egg
+*.egg-info
+
+# Test files
+*.test
+
+# Log files
+*.log
+*.tmp
+
+# Virtual environments
+.venv
+venv
+ENV
+env
+virtualenv
+.env
+.envs
