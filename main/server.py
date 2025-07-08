@@ -200,8 +200,8 @@ if __name__ == '__main__':
     print("Certificate Verification System Server")
     print("="*50)
     print("Server starting...")
-    print("Admin Interface: http://localhost:5000/admin")
-    print("Verify Interface: http://localhost:5000/verify")
+    print("Admin Interface: https://secure-cert.onrender.com/admin")   #http://localhost:5000/admin
+    print("Verify Interface: https://secure-cert.onrender.com/verify")            # http://localhost:5000/verify
     print("API Endpoints:")
     print("  POST /process - Process certificates")
     print("  POST /verify - Verify certificates")
