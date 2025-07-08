@@ -66,7 +66,7 @@
                 formData.append('serialNumber', serialNumber);
                 formData.append('pdfFile', file);
                 
-                const response = await fetch('https://secure-cert.onrender.com/process', {
+                const response = await fetch('https://secure-cert.onrender.com/process', {   // local host url
                     method: 'POST',
                     body: formData
                 });

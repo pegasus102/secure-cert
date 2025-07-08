@@ -201,7 +201,7 @@ def process_certificate(serial_number, pdf_path):
             return None
         
         # Generate QR code with verification URL
-        qr_url = f'https://secure-cert.onrender.com/verify?serial={serial_number}'
+        qr_url = f'https://secure-cert.onrender.com/verify?serial={serial_number}'  # update from local host url
         qr_filename = generate_qr_code(qr_url, serial_number)
         #qr_filename = generate_qr_code(qr_url, f"serial_{serial_number}")
         
