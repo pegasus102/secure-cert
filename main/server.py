@@ -217,4 +217,5 @@ if __name__ == '__main__':
         if not os.path.exists(file):
             print(f"WARNING: {file} not found!")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))  # 5000 is fallback for local
+    app.run(host='0.0.0.0', port=port, debug=True)
