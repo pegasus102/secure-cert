@@ -43,65 +43,55 @@
 
     <script>
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const serialNumber = document.getElementById('serialNumber').value;
-            const fileInput = document.getElementById('pdfFile');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                showError('Please select a PDF file');
-                return;
-            }
-            
-            // Show loading
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('successDisplay').style.display = 'none';
-            document.getElementById('errorDisplay').style.display = 'none';
-            document.getElementById('submitBtn').disabled = true;
-            
-            try {
-                // Create FormData for file upload
-                const formData = new FormData();
-                formData.append('serialNumber', serialNumber);
-                formData.append('pdfFile', file);
-                
-                const response = await fetch('/process', {   // local host url
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const contentType = response.headers.get('content-type');
-                
-                if (contentType && contentType.includes('application/json')) {
-                    const data = await response.json();
-                    if (data.success) {
-                        document.getElementById('successDisplay').style.display = 'block';
-                    } else {
-                        showError(data.error || 'Processing failed');
-                    }
-                } else {
-                    // Server processed successfully and returned QR code
-                    document.getElementById('successDisplay').style.display = 'block';
-                }
-                
-            } catch (error) {
-                console.error('Error:', error);
-                showError('Error processing certificate: ' + error.message);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('submitBtn').disabled = false;
-            }
-        });
-        
-        function showError(message) {
-            document.getElementById('errorMessage').textContent = message;
-            document.getElementById('errorDisplay').style.display = 'block';
+          e.preventDefault();
+    
+        const serialNumber = document.getElementById('serialNumber').value;
+        const fileInput = document.getElementById('pdfFile');
+        const file = fileInput.files[0];
+    
+        if (!file) {
+          showError('Please select a PDF file');
+          return;
         }
+    
+        // Show loading
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('successDisplay').style.display = 'none';
+        document.getElementById('errorDisplay').style.display = 'none';
+        document.getElementById('submitBtn').disabled = true;
+    
+        try {
+         // Create FormData for file upload
+         const formData = new FormData();
+         formData.append('serialNumber', serialNumber);
+         formData.append('pdfFile', file);
+        
+         const response = await fetch('/process', {
+            method: 'POST',
+            body: formData
+            });
+        
+         const data = await response.json();
+        
+         if (response.ok && data.success) {
+            document.getElementById('successDisplay').style.display = 'block';
+            } else {
+            showError(data.error || 'Processing failed');
+            }
+        
+        } catch (error) {
+        console.error('Error:', error);
+        showError('Error processing certificate: ' + error.message);
+        } finally {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('submitBtn').disabled = false;
+        }
+    });
+
+    function showError(message) {
+     document.getElementById('errorMessage').textContent = message;
+     document.getElementById('errorDisplay').style.display = 'block';
+    }
     </script>
 </body>
 </html>

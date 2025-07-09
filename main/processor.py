@@ -8,6 +8,7 @@ import firebase_admin
 from firebase_admin import credentials, storage
 import tempfile
 from dotenv import load_dotenv
+import tempfile
 
 def convert_date_format(date_str):
     """Convert date from DD-MM-YYYY to YYYY-MM-DD"""
@@ -92,7 +93,7 @@ def decrypt_pdf(encrypted_data, key):
         return None
 
 def generate_qr_code(data, serial_number):
-    """Generate QR code and save as image file using serial number"""
+    """Generate QR code and upload to Firebase Storage"""
     try:
         qr = qrcode.QRCode(
             version=1,
@@ -105,32 +106,32 @@ def generate_qr_code(data, serial_number):
         
         # Create QR code image
         qr_image = qr.make_image(fill_color="black", back_color="white")
-        # Get base directory (i.e., project folder)
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
-        # Create full path to qr_codes directory outside main/
-        output_dir = os.path.join(base_dir, 'qr_codes')
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Use serial number as filename
-        final_filename = os.path.join(output_dir, f"{serial_number}.png")
-
-        # Save image
-        qr_image.save(final_filename)
         
-        # Create output directory if it doesn't exist
-        #output_dir = "qr_codes"
-        #os.makedirs(output_dir, exist_ok=True)
+        # Save to temporary file first
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+            qr_image.save(temp_file.name)
+            temp_file_path = temp_file.name
         
-        # Use serial number as filename
-        #final_filename = f"{output_dir}/{serial_number}.png"
-        
-        # Save image
-        #qr_image.save(final_filename)
-
-
-        print(f"QR code saved as: {final_filename}")
-        return final_filename
+        try:
+            # Upload to Firebase Storage
+            with open(temp_file_path, 'rb') as qr_file:
+                qr_data = qr_file.read()
+            
+            qr_filename = f"qr_codes/{serial_number}.png"
+            if upload_to_firebase(qr_data, qr_filename):
+                print(f"QR code uploaded to Firebase: {qr_filename}")
+                return qr_filename
+            else:
+                print("Failed to upload QR code to Firebase")
+                return None
+                
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+                
     except Exception as e:
         print(f"Error generating QR code: {str(e)}")
         return None

@@ -66,9 +66,12 @@ def process_certificate():
             # Process certificate
             qr_code_path = processor.process_certificate(serial_number, temp_file_path)
             
-            if qr_code_path and os.path.exists(qr_code_path):
-                # Return QR code image
-                return send_file(qr_code_path, mimetype='image/png')
+            if qr_code_path:
+                return jsonify({
+                    'success': True,
+                    'message': 'Certificate processed successfully',
+                    'qr_code_path': qr_code_path
+                }), 200
             else:
                 return jsonify({
                     'success': False,
