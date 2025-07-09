@@ -27,10 +27,13 @@ def home():
 
 @app.route('/process', methods=['POST'])
 def process_certificate():
-    """Process certificate upload"""
+    """Process certificate upload with detailed error logging"""
     try:
+        print("=== Starting certificate processing ===")
+        
         # Check if request has file
         if 'pdfFile' not in request.files:
+            print("ERROR: No PDF file provided in request")
             return jsonify({
                 'success': False,
                 'error': 'No PDF file provided'
@@ -39,40 +42,52 @@ def process_certificate():
         file = request.files['pdfFile']
         serial_number = request.form.get('serialNumber')
         
+        print(f"Serial number: {serial_number}")
+        print(f"File name: {file.filename}")
+        
         if not serial_number:
+            print("ERROR: No serial number provided")
             return jsonify({
                 'success': False,
                 'error': 'Serial number is required'
             }), 400
         
         if file.filename == '':
+            print("ERROR: No file selected")
             return jsonify({
                 'success': False,
                 'error': 'No file selected'
             }), 400
         
         if not file.filename.lower().endswith('.pdf'):
+            print("ERROR: File is not a PDF")
             return jsonify({
                 'success': False,
                 'error': 'Only PDF files are allowed'
             }), 400
         
+        print("Creating temporary file...")
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
             file.save(temp_file.name)
             temp_file_path = temp_file.name
         
+        print(f"Temporary file created: {temp_file_path}")
+        
         try:
+            print("Calling processor.process_certificate...")
             # Process certificate
             qr_code_path = processor.process_certificate(serial_number, temp_file_path)
             
             if qr_code_path:
+                print("Certificate processing successful!")
                 return jsonify({
                     'success': True,
                     'message': 'Certificate processed successfully',
                     'qr_code_path': qr_code_path
                 }), 200
             else:
+                print("Certificate processing failed - no QR code path returned")
                 return jsonify({
                     'success': False,
                     'error': 'Certificate processing failed'
@@ -81,12 +96,15 @@ def process_certificate():
         finally:
             # Clean up temporary file
             try:
+                print(f"Cleaning up temporary file: {temp_file_path}")
                 os.unlink(temp_file_path)
-            except:
-                pass
+            except Exception as cleanup_error:
+                print(f"Error cleaning up temp file: {cleanup_error}")
         
     except Exception as e:
-        print(f"Error in /process: {str(e)}")
+        print(f"ERROR in /process endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
