@@ -169,42 +169,63 @@ def download_from_firebase(filename):
         return None
 
 def process_certificate(serial_number, pdf_path):
-    """Main processing function"""
+    """Main processing function with detailed logging"""
     try:
-        # Load DOB from CSV
-        dob = load_dob(serial_number)
-        if not dob:
-            print(f"Error: Certificate {serial_number} not found")
+        print(f"Starting certificate processing for: {serial_number}")
+        print(f"PDF path: {pdf_path}")
+        
+        # Check if PDF file exists
+        if not os.path.exists(pdf_path):
+            print(f"ERROR: PDF file not found at {pdf_path}")
             return None
         
+        # Load DOB from CSV
+        print("Loading DOB from CSV...")
+        dob = load_dob(serial_number)
+        if not dob:
+            print(f"ERROR: Certificate {serial_number} not found in CSV")
+            return None
+        
+        print(f"Found DOB: {dob}")
+        
         # Convert DOB to easy password format
+        print("Creating password from DOB...")
         easy_password = create_easy_password(dob)
         if not easy_password:
-            print("Error: Could not create password")
+            print("ERROR: Could not create password from DOB")
             return None
         
         print(f"Generated password: {easy_password}")
         
         # Encrypt PDF
+        print("Encrypting PDF...")
         encrypted_data, key = encrypt_pdf(pdf_path, easy_password)
         if not encrypted_data or not key:
-            print("Error: Could not encrypt PDF")
+            print("ERROR: Could not encrypt PDF")
             return None
+        
+        print("PDF encrypted successfully")
         
         # Upload encrypted PDF to Firebase
+        print("Uploading encrypted PDF to Firebase...")
         if not upload_to_firebase(encrypted_data, f'{serial_number}.pdf'):
-            print("Error: Could not upload encrypted PDF")
+            print("ERROR: Could not upload encrypted PDF to Firebase")
             return None
+        
+        print("Encrypted PDF uploaded successfully")
         
         # Upload encryption key to Firebase
+        print("Uploading encryption key to Firebase...")
         if not upload_to_firebase(key, f'{easy_password}_key'):
-            print("Error: Could not upload encryption key")
+            print("ERROR: Could not upload encryption key to Firebase")
             return None
         
+        print("Encryption key uploaded successfully")
+        
         # Generate QR code with verification URL
-        qr_url = f'https://secure-cert.onrender.com/verify?serial={serial_number}'  # update from local host url
+        print("Generating QR code...")
+        qr_url = f'https://secure-cert.onrender.com/verify?serial={serial_number}'
         qr_filename = generate_qr_code(qr_url, serial_number)
-        #qr_filename = generate_qr_code(qr_url, f"serial_{serial_number}")
         
         if qr_filename:
             print(f"Certificate processing completed successfully")
@@ -212,11 +233,13 @@ def process_certificate(serial_number, pdf_path):
             print(f"Verification URL: {qr_url}")
             return qr_filename
         else:
-            print("Error: Could not generate QR code")
+            print("ERROR: Could not generate QR code")
             return None
             
     except Exception as e:
-        print(f"Error processing certificate: {str(e)}")
+        print(f"ERROR in process_certificate: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def verify_certificate(serial_number, dob):
@@ -254,30 +277,43 @@ def verify_certificate(serial_number, dob):
         return None
 
 def initialize_firebase():
-    """Initialize Firebase"""
+    """Initialize Firebase with detailed logging"""
     try:
         if not firebase_admin._apps:
+            print("Initializing Firebase...")
+            
             # Load environment variables from .env
             load_dotenv()
+            print("Environment variables loaded")
 
             # Get the path from environment variable
             cred_path = os.getenv("FIREBASE_KEY_PATH")
+            print(f"Firebase key path from env: {cred_path}")
 
             if not cred_path:
-                raise ValueError("FIREBASE_KEY_PATH not set in .env file!")
+                print("ERROR: FIREBASE_KEY_PATH not set in .env file!")
+                return False
 
+            # Check if credentials file exists
+            if not os.path.exists(cred_path):
+                print(f"ERROR: Firebase credentials file not found at: {cred_path}")
+                return False
+
+            print("Loading Firebase credentials...")
             # Load Firebase credentials
             cred = credentials.Certificate(cred_path)
-            #cred_path = os.environ.get("D:\Phind\firebase_key.json")
-            #cred = credentials.Certificate(cred_path)
-            #cred = credentials.Certificate('firebase_key.json')
+            
+            print("Initializing Firebase app...")
             firebase_admin.initialize_app(cred, {
                 'storageBucket': 'certificate-verify-7bab6.firebasestorage.app'
             })
+            
         print("Firebase initialized successfully")
         return True
     except Exception as e:
-        print(f"Error initializing Firebase: {str(e)}")
+        print(f"ERROR initializing Firebase: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # Test function
