@@ -165,7 +165,7 @@ def generate_qr_code(data, serial_number):
             print(f"QR code file size: {len(qr_data)} bytes")
             
             qr_filename = f"qr_codes/{serial_number}.png"
-            if upload_to_firebase(qr_data, qr_filename):
+            if upload_to_firebase(qr_data, qr_filename, content_type='image/png'):
                 print(f"QR code uploaded to Firebase: {qr_filename}")
                 return qr_filename
             else:
@@ -184,7 +184,7 @@ def generate_qr_code(data, serial_number):
         traceback.print_exc()
         return None
 
-def upload_to_firebase(data, filename):
+def upload_to_firebase(data, filename, content_type=None):
     """Upload data to Firebase Storage with enhanced error handling"""
     try:
         print(f"Uploading to Firebase: {filename}")
@@ -200,9 +200,12 @@ def upload_to_firebase(data, filename):
         blob = bucket.blob(filename)
         
         if isinstance(data, bytes):
-            blob.upload_from_string(data)
+            if content_type:
+                blob.upload_from_string(data, content_type=content_type)
+            else:
+                blob.upload_from_string(data)
         else:
-            blob.upload_from_string(data, content_type='application/octet-stream')
+            blob.upload_from_string(data, content_type=content_type or 'application/octet-stream')
         
         print(f"Successfully uploaded {filename}")
         return True
@@ -283,7 +286,7 @@ def process_certificate(serial_number, pdf_path):
         
         # Upload encrypted PDF to Firebase
         print("Step 4: Uploading encrypted PDF to Firebase...")
-        if not upload_to_firebase(encrypted_data, f'{serial_number}.pdf'):
+        if not upload_to_firebase(encrypted_data, f'{serial_number}.pdf', content_type='application/pdf'):
             print("ERROR: Could not upload encrypted PDF to Firebase")
             return None
         
@@ -291,7 +294,7 @@ def process_certificate(serial_number, pdf_path):
         
         # Upload encryption key to Firebase
         print("Step 5: Uploading encryption key to Firebase...")
-        if not upload_to_firebase(key, f'{easy_password}_key'):
+        if not upload_to_firebase(key, f'{easy_password}_key', content_type='application/octet-stream'):
             print("ERROR: Could not upload encryption key to Firebase")
             return None
         
