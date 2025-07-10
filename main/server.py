@@ -5,7 +5,88 @@ import os
 import tempfile
 import json
 import traceback
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import io
+from PIL import Image
 
+def embed_qr_in_pdf(pdf_path, qr_image_data, output_path):
+    """Embed QR code in top-right corner of PDF"""
+    try:
+        print(f"Embedding QR code in PDF: {pdf_path}")
+        
+        # Read the original PDF
+        pdf_reader = PdfReader(pdf_path)
+        pdf_writer = PdfWriter()
+        
+        # Create QR code overlay
+        qr_overlay = create_qr_overlay(qr_image_data)
+        
+        # Process each page (or just the first page)
+        for page_num, page in enumerate(pdf_reader.pages):
+            if page_num == 0:  # Only add QR to first page
+                # Merge QR overlay with the page
+                page.merge_page(qr_overlay)
+            pdf_writer.add_page(page)
+        
+        # Write the modified PDF
+        with open(output_path, 'wb') as output_file:
+            pdf_writer.write(output_file)
+        
+        print(f"QR code embedded successfully: {output_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error embedding QR code: {str(e)}")
+        traceback.print_exc()
+        return False
+
+def create_qr_overlay(qr_image_data):
+    """Create QR code overlay for PDF"""
+    try:
+        # Create a BytesIO buffer for the overlay PDF
+        packet = io.BytesIO()
+        
+        # Create canvas for overlay
+        c = canvas.Canvas(packet, pagesize=letter)
+        width, height = letter
+        
+        # Save QR image temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_qr:
+            temp_qr.write(qr_image_data)
+            temp_qr_path = temp_qr.name
+        
+        try:
+            # Position QR code in top-right corner
+            qr_size = 80  # Size of QR code
+            x_position = width - qr_size - 20  # 20 pixels from right edge
+            y_position = height - qr_size - 20  # 20 pixels from top
+            
+            # Draw QR code on canvas
+            c.drawImage(temp_qr_path, x_position, y_position, qr_size, qr_size)
+            c.save()
+            
+            # Move to beginning of BytesIO buffer
+            packet.seek(0)
+            
+            # Create PDF from overlay
+            overlay_pdf = PdfReader(packet)
+            return overlay_pdf.pages[0]
+            
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_qr_path)
+            except:
+                pass
+                
+    except Exception as e:
+        print(f"Error creating QR overlay: {str(e)}")
+        traceback.print_exc()
+        return None
+    
+#previous codes
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
