@@ -9,6 +9,10 @@ from firebase_admin import credentials, storage
 import tempfile
 from dotenv import load_dotenv
 import traceback
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import io
+from PyPDF2 import PdfReader, PdfWriter
 
 def convert_date_format(date_str):
     """Convert date from DD-MM-YYYY to YYYY-MM-DD"""
@@ -241,7 +245,7 @@ def download_from_firebase(filename):
         return None
 
 def process_certificate(serial_number, pdf_path):
-    """Main processing function with enhanced error handling"""
+    """Main processing function with QR code embedding"""
     try:
         print(f"=== PROCESSING CERTIFICATE ===")
         print(f"Serial Number: {serial_number}")
@@ -275,47 +279,190 @@ def process_certificate(serial_number, pdf_path):
         
         print(f"Generated password: {easy_password}")
         
-        # Encrypt PDF
-        print("Step 3: Encrypting PDF...")
-        encrypted_data, key = encrypt_pdf(pdf_path, easy_password)
-        if not encrypted_data or not key:
-            print("ERROR: Could not encrypt PDF")
-            return None
-        
-        print("PDF encrypted successfully")
-        
-        # Upload encrypted PDF to Firebase
-        print("Step 4: Uploading encrypted PDF to Firebase...")
-        if not upload_to_firebase(encrypted_data, f'{serial_number}.pdf', content_type='application/pdf'):
-            print("ERROR: Could not upload encrypted PDF to Firebase")
-            return None
-        
-        print("Encrypted PDF uploaded successfully")
-        
-        # Upload encryption key to Firebase
-        print("Step 5: Uploading encryption key to Firebase...")
-        if not upload_to_firebase(key, f'{easy_password}_key', content_type='application/octet-stream'):
-            print("ERROR: Could not upload encryption key to Firebase")
-            return None
-        
-        print("Encryption key uploaded successfully")
-        
         # Generate QR code with verification URL
-        print("Step 6: Generating QR code...")
+        print("Step 3: Generating QR code...")
         qr_url = f'https://secure-cert.onrender.com/verify?serial={serial_number}'
-        qr_filename = generate_qr_code(qr_url, serial_number)
+        qr_code_data = generate_qr_code_data(qr_url, serial_number)
         
-        if qr_filename:
-            print(f"=== PROCESSING COMPLETED SUCCESSFULLY ===")
-            print(f"QR Code: {qr_filename}")
-            print(f"Verification URL: {qr_url}")
-            return qr_filename
-        else:
+        if not qr_code_data:
             print("ERROR: Could not generate QR code")
             return None
+        
+        print("QR code generated successfully")
+        
+        # Embed QR code in PDF
+        print("Step 4: Embedding QR code in PDF...")
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+            temp_pdf_path = temp_pdf.name
+        
+        try:
+            if not embed_qr_in_pdf(pdf_path, qr_code_data, temp_pdf_path):
+                print("ERROR: Could not embed QR code in PDF")
+                return None
             
+            print("QR code embedded successfully")
+            
+            # Encrypt the modified PDF
+            print("Step 5: Encrypting PDF with embedded QR code...")
+            encrypted_data, key = encrypt_pdf(temp_pdf_path, easy_password)
+            if not encrypted_data or not key:
+                print("ERROR: Could not encrypt PDF")
+                return None
+            
+            print("PDF encrypted successfully")
+            
+            # Upload encrypted PDF to Firebase
+            print("Step 6: Uploading encrypted PDF to Firebase...")
+            if not upload_to_firebase(encrypted_data, f'{serial_number}.pdf', content_type='application/pdf'):
+                print("ERROR: Could not upload encrypted PDF to Firebase")
+                return None
+            
+            print("Encrypted PDF uploaded successfully")
+            
+            # Upload encryption key to Firebase
+            print("Step 7: Uploading encryption key to Firebase...")
+            if not upload_to_firebase(key, f'{easy_password}_key', content_type='application/octet-stream'):
+                print("ERROR: Could not upload encryption key to Firebase")
+                return None
+            
+            print("Encryption key uploaded successfully")
+            
+            # Upload QR code image to Firebase for reference
+            print("Step 8: Uploading QR code image to Firebase...")
+            qr_filename = f"qr_codes/{serial_number}.png"
+            if not upload_to_firebase(qr_code_data, qr_filename, content_type='image/png'):
+                print("WARNING: Could not upload QR code image to Firebase")
+                # This is not a critical error, continue processing
+            
+            print(f"=== PROCESSING COMPLETED SUCCESSFULLY ===")
+            print(f"QR Code embedded in PDF")
+            print(f"Verification URL: {qr_url}")
+            return qr_filename
+            
+        finally:
+            # Clean up temporary PDF file
+            try:
+                os.unlink(temp_pdf_path)
+            except:
+                pass
+                
     except Exception as e:
         print(f"ERROR in process_certificate: {str(e)}")
+        traceback.print_exc()
+        return None
+
+
+def generate_qr_code_data(data, serial_number):
+    """Generate QR code and return image data as bytes"""
+    try:
+        print(f"Generating QR code data for serial: {serial_number}")
+        print(f"QR code data: {data}")
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        
+        # Create QR code image
+        qr_image = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to bytes
+        img_byte_arr = io.BytesIO()
+        qr_image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        
+        qr_data = img_byte_arr.getvalue()
+        print(f"QR code data generated: {len(qr_data)} bytes")
+        
+        return qr_data
+        
+    except Exception as e:
+        print(f"Error generating QR code data: {str(e)}")
+        traceback.print_exc()
+        return None
+
+
+def embed_qr_in_pdf(pdf_path, qr_image_data, output_path):
+    """Embed QR code in top-right corner of PDF"""
+    try:
+        print(f"Embedding QR code in PDF: {pdf_path}")
+        
+        # Read the original PDF
+        pdf_reader = PdfReader(pdf_path)
+        pdf_writer = PdfWriter()
+        
+        # Create QR code overlay
+        qr_overlay = create_qr_overlay(qr_image_data)
+        
+        if not qr_overlay:
+            print("ERROR: Could not create QR overlay")
+            return False
+        
+        # Process each page (or just the first page)
+        for page_num, page in enumerate(pdf_reader.pages):
+            if page_num == 0:  # Only add QR to first page
+                # Merge QR overlay with the page
+                page.merge_page(qr_overlay)
+            pdf_writer.add_page(page)
+        
+        # Write the modified PDF
+        with open(output_path, 'wb') as output_file:
+            pdf_writer.write(output_file)
+        
+        print(f"QR code embedded successfully: {output_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error embedding QR code: {str(e)}")
+        traceback.print_exc()
+        return False
+
+
+def create_qr_overlay(qr_image_data):
+    """Create QR code overlay for PDF"""
+    try:
+        # Create a BytesIO buffer for the overlay PDF
+        packet = io.BytesIO()
+        
+        # Create canvas for overlay
+        c = canvas.Canvas(packet, pagesize=letter)
+        width, height = letter
+        
+        # Save QR image temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_qr:
+            temp_qr.write(qr_image_data)
+            temp_qr_path = temp_qr.name
+        
+        try:
+            # Position QR code in top-right corner
+            qr_size = 80  # Size of QR code
+            x_position = width - qr_size - 20  # 20 pixels from right edge
+            y_position = height - qr_size - 20  # 20 pixels from top
+            
+            # Draw QR code on canvas
+            c.drawImage(temp_qr_path, x_position, y_position, qr_size, qr_size)
+            c.save()
+            
+            # Move to beginning of BytesIO buffer
+            packet.seek(0)
+            
+            # Create PDF from overlay
+            overlay_pdf = PdfReader(packet)
+            return overlay_pdf.pages[0]
+            
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_qr_path)
+            except:
+                pass
+                
+    except Exception as e:
+        print(f"Error creating QR overlay: {str(e)}")
         traceback.print_exc()
         return None
 
